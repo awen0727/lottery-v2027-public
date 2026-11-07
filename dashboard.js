@@ -2,8 +2,10 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const eventId = new URLSearchParams(location.search).get('event') || '';
+  const validEvent = /^EVT-[A-Za-z0-9-]{8,80}$/.test(eventId);
   const apiUrl = window.LOTTERY_PUBLIC_API_URL || '';
   let offset = 0, total = 0, counter = 0, busy = false, activeTicket = '';
+  let eventLoaded = false;
   function message(text) { $('message').textContent = text; }
   function request(action, extra = {}) {
     return new Promise((resolve, reject) => {
@@ -63,14 +65,19 @@
   const page=next=>task(async()=>{const old=offset;offset=next;try{await loadList();}catch(error){offset=old;throw error;}});
   $('loadMore').addEventListener('click',()=>page(offset+100));
   $('previous').addEventListener('click',()=>page(Math.max(0,offset-100)));
-  const refresh=()=>task(async()=>{await loadList();if(activeTicket)await loadTicket();});
-  $('refresh').addEventListener('click',refresh);
-  task(async () => {
-    if (!/^EVT-[A-Za-z0-9-]{8,80}$/.test(eventId)) throw new Error('活動連結無效');
-    const event = await request('event');
-    $('eventName').textContent = event.name; $('eventDate').textContent = event.date || '';
-    document.title = `${event.name}｜兌獎查詢`;
+  const refresh=()=>task(async()=>{
+    if (!validEvent) throw new Error('活動連結無效');
+    if (!eventLoaded) {
+      const event = await request('event');
+      $('eventName').textContent = event.name;
+      $('eventDate').textContent = event.date || '';
+      document.title = `${event.name}｜兌獎查詢`;
+      eventLoaded = true;
+    }
     await loadList();
+    if(activeTicket)await loadTicket();
   });
-  if(typeof setInterval==='function')setInterval(()=>{if(!document.hidden&&/^EVT-[A-Za-z0-9-]{8,80}$/.test(eventId))refresh();},10000);
+  $('refresh').addEventListener('click',refresh);
+  refresh();
+  if(typeof setInterval==='function'&&validEvent)setInterval(()=>{if(!document.hidden)refresh();},10000);
 })();
